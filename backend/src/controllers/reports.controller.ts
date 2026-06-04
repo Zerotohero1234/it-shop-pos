@@ -198,52 +198,33 @@ export async function getIncomeExpenses(req: Request, res: Response): Promise<vo
       ? String(req.query.end_date)
       : new Date().toISOString().slice(0, 10);
 
-    // Fetch all 4 sources in parallel
-    const [[saleIncomeRows], [refundRows], [manualIncomeRows], [manualExpenseRows]] =
-      await Promise.all([
-        // Income from paid sales
-        pool.execute<any[]>(
-          `SELECT COALESCE(SUM(total), 0) AS total, COUNT(*) AS count
-           FROM sales
-           WHERE payment_status = 'paid'
-             AND DATE(created_at) BETWEEN ? AND ?`,
-          [startDate, endDate]
-        ),
-        // Expense from refunded sales
-        pool.execute<any[]>(
-          `SELECT COALESCE(SUM(total), 0) AS total, COUNT(*) AS count
-           FROM sales
-           WHERE payment_status = 'refunded'
-             AND DATE(created_at) BETWEEN ? AND ?`,
-          [startDate, endDate]
-        ),
-        // Income from manual income_expenses entries
-        pool.execute<any[]>(
-          `SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS count
-           FROM income_expenses
-           WHERE type = 'Income'
-             AND DATE(transaction_date) BETWEEN ? AND ?`,
-          [startDate, endDate]
-        ),
-        // Expense from manual income_expenses entries
-        pool.execute<any[]>(
-          `SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS count
-           FROM income_expenses
-           WHERE type = 'Expense'
-             AND DATE(transaction_date) BETWEEN ? AND ?`,
-          [startDate, endDate]
-        ),
-      ]);
+    // Single query to get both Income and Expense from income_expenses table
+    // This table is the central ledger (records source='sale', source='return', source='manual')
+    const [rows] = await pool.execute<any[]>(
+      `SELECT 
+         type, 
+         COALESCE(SUM(amount), 0) AS total, 
+         COUNT(*) AS count
+       FROM income_expenses
+       WHERE DATE(transaction_date) BETWEEN ? AND ?
+       GROUP BY type`,
+      [startDate, endDate]
+    );
 
-    const incomeTotal  = Number((saleIncomeRows  as any[])[0]?.total || 0)
-                       + Number((manualIncomeRows as any[])[0]?.total || 0);
-    const expenseTotal = Number((refundRows       as any[])[0]?.total || 0)
-                       + Number((manualExpenseRows as any[])[0]?.total || 0);
+    let incomeTotal  = 0;
+    let expenseTotal = 0;
+    let incomeCount  = 0;
+    let expenseCount = 0;
 
-    const incomeCount  = Number((saleIncomeRows  as any[])[0]?.count || 0)
-                       + Number((manualIncomeRows as any[])[0]?.count || 0);
-    const expenseCount = Number((refundRows       as any[])[0]?.count || 0)
-                       + Number((manualExpenseRows as any[])[0]?.count || 0);
+    for (const r of rows as any[]) {
+      if (r.type === 'Income') {
+        incomeTotal = Number(r.total);
+        incomeCount = Number(r.count);
+      } else if (r.type === 'Expense') {
+        expenseTotal = Number(r.total);
+        expenseCount = Number(r.count);
+      }
+    }
 
     res.status(200).json({
       success: true,

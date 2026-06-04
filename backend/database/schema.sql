@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS sales (
   total           DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
   payment_method  ENUM('cash', 'card', 'transfer') NOT NULL DEFAULT 'cash',
   payment_status  ENUM('paid', 'pending', 'refunded') NOT NULL DEFAULT 'paid',
+  refund_status   ENUM('none', 'partial', 'full') NOT NULL DEFAULT 'none',
   notes           TEXT,
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
@@ -93,6 +94,54 @@ CREATE TABLE IF NOT EXISTS sale_items (
   subtotal    DECIMAL(10, 2) NOT NULL,
   FOREIGN KEY (sale_id)    REFERENCES sales(id)    ON DELETE CASCADE,
   FOREIGN KEY (product_id) REFERENCES products(id)
+);
+
+-- ─────────────────────────────────────────
+-- Deliveries
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS deliveries (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  sale_id        INT NOT NULL,
+  address        TEXT NOT NULL,
+  status         ENUM('Pending', 'Shipping', 'Delivered') NOT NULL DEFAULT 'Pending',
+  driver_name    VARCHAR(100),
+  delivery_date  DATE,
+  notes          TEXT,
+  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE
+);
+
+-- ─────────────────────────────────────────
+-- Income & Expenses
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS income_expenses (
+  id                INT AUTO_INCREMENT PRIMARY KEY,
+  type              ENUM('Income', 'Expense') NOT NULL,
+  amount            DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+  description       TEXT,
+  transaction_date  DATE NOT NULL,
+  source            ENUM('manual', 'sale', 'return') NOT NULL DEFAULT 'manual',
+  created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ─────────────────────────────────────────
+-- Return Items
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS return_items (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  sale_id        INT NOT NULL,
+  sale_item_id   INT NOT NULL,
+  product_id     INT NOT NULL,
+  quantity       INT NOT NULL,
+  refund_amount  DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+  reason         TEXT,
+  returned_by    INT NOT NULL,
+  returned_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (sale_id)      REFERENCES sales(id)      ON DELETE CASCADE,
+  FOREIGN KEY (sale_item_id) REFERENCES sale_items(id) ON DELETE CASCADE,
+  FOREIGN KEY (product_id)   REFERENCES products(id),
+  FOREIGN KEY (returned_by)  REFERENCES users(id)
 );
 
 -- ─────────────────────────────────────────

@@ -21,6 +21,11 @@ export type PaymentMethod = 'cash' | 'card' | 'transfer';
 export type PaymentStatus = 'paid' | 'pending' | 'refunded';
 
 /**
+ * Sale Refund Status Types
+ */
+export type RefundStatus = 'none' | 'partial' | 'full';
+
+/**
  * Delivery Status Types
  */
 export type DeliveryStatus = 'Pending' | 'Shipping' | 'Delivered';
@@ -131,6 +136,7 @@ export interface Sale extends RowDataPacket {
   total: number;
   payment_method: PaymentMethod;
   payment_status: PaymentStatus;
+  refund_status: RefundStatus;
   notes: string | null;
   created_at: Date;
 }
